@@ -1,0 +1,75 @@
+language: java
+dist: trusty
+jdk: oraclejdk8
+cache:
+  bundler: true
+  directories:
+    - $HOME/.m2
+    - $HOME/docker
+addons:
+  apt:
+    packages:
+      - net-tools
+services:
+  - docker
+
+script:
+  - export HOST_IP=$(ifconfig docker0 | awk -F"[:, ]+" '/inet/ {print $4}')
+  - echo "$DOCKER_PAS" | docker login --username "$DOCKER_USER" --password-stdin
+  - docker-compose -f ./selenium-grid/docker-compose.yaml up -d
+  - . ./selenium-grid/wait-for-grid.sh && mvn clean test
+  - docker-compose -f ./selenium-grid/docker-compose.yaml down
+
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  /*  # Choose a build environment
+dist: xenial
+
+# Do not choose a language; we provide our own build tools.
+language: generic
+
+# Caching so the next build will be fast too.
+cache:
+  directories:
+    - $HOME/.stack
+    - $HOME/.hlint
+    - /home/travis/.rvm/
+
+services:
+  - "postgresql"
+
+# Ensure necessary system libraries are present
+addons:
+  apt:
+    packages:
+      - libgmp-dev
+
+before_install:
+  # Download and unpack the stack executable
+  - mkdir -p ~/.local/bin
+  - export PATH=$HOME/.local/bin:$PATH
+  - travis_retry curl -L https://get.haskellstack.org/stable/linux-x86_64.tar.gz | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+  - cd back/
+  - curl -sSL https://raw.github.com/ndmitchell/hlint/master/misc/run.sh | sh -s .
+  - cd ..
+
+install:
+  # Build dependencies
+  - cd back/
+  - stack --no-nix --no-terminal --install-ghc test --only-dependencies
+  - cd ..
+
+before_script:
+  - psql -U postgres -c "CREATE DATABASE test;"
+  - cd migration/db
+  - cp config.yml.dist config.yml
+  - cd ..
+  - bundle
+  - RAILS_ENV=test rake db:drop db:create db:migrate
+  - cd ..
+
+script:
+  # Build the package, its tests, and its docs and run the tests
+  - cd back
+  - stack  --no-nix --no-terminal test patchgirl-web --ghc-options="-threaded -rtsopts -with-rtsopts=-T -Werror"
+  - stack  --no-nix --no-terminal test patchgirl-runner --ghc-options="-threaded -rtsopts -with-rtsopts=-T -Werror"
+  - cd ..*/
